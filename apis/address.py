@@ -1,6 +1,8 @@
 import csv
 from typing import Iterator, List
 from itertools import combinations
+from geopy import distance
+import requests
 
 from werkzeug.datastructures import FileStorage
 
@@ -16,16 +18,27 @@ def addresses_response(file: FileStorage) -> dict:
 
 
 def build_points(data: dict) -> List[dict]:
-    return list()
+    return [{"name": name, "address": get_address(position[0], position[1])} for name, position in data.items()]
+
+
+def get_address(latitude: str, longitude: str) -> str:
+    url = f"http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location={longitude}%2C{latitude}&langCode=en&outSR=&forStorage=false&f=json"
+    address = requests.get(url).json()["address"]
+    return address["LongLabel"] or address["PlaceName"]
 
 
 def build_links(data: dict) -> List[dict]:
-    return [{"name": x[0] + x[1], "distance": calc_distance(data[x[0]], data[x[1]])} for x in
-            combinations(list(data.keys()), 2)]
+    return [
+        {
+            "name": key_combination[0] + key_combination[1],
+            "distance": calc_distance(data[key_combination[0]], data[key_combination[1]])
+        }
+        for key_combination in combinations(list(data.keys()), 2)
+    ]
 
 
 def calc_distance(point1: List[float], point2: List[float]) -> float:
-    return 1.0
+    return int(distance.geodesic(point1, point2, ellipsoid="WGS-84").km * 10) / 10
 
 
 def get_csv(file: FileStorage) -> Iterator:
